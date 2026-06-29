@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>PA 績效考核工具 — 平鎮店</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#ffffff; --ink:#1e293b; --muted:#64748b;
+    --line:#e2e8f0; --brand:#2563eb; --brand-d:#1d4ed8;
+    --red:#dc2626; --red-bg:#fee2e2; --amber:#d97706; --amber-bg:#fef3c7;
+    --green:#16a34a; --green-bg:#dcfce7; --soft:#f8fafc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;
+    background:linear-gradient(180deg,#0f172a,#1e293b);color:var(--ink);min-height:100vh}
+  /* ---------- 登入閘門 ---------- */
+  #gate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(1200px 600px at 50% -10%,#1e3a8a,#0f172a);z-index:50}
+  .gatecard{background:#fff;border-radius:18px;padding:38px 34px;width:min(92vw,400px);
+    box-shadow:0 30px 80px rgba(0,0,0,.45);text-align:center}
+  .gatecard h1{font-size:22px;margin:6px 0 2px}
+  .gatecard p{color:var(--muted);font-size:14px;margin:0 0 22px}
+  .gbtn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);
+    background:#fff;padding:12px 20px;border-radius:10px;font-size:15px;cursor:pointer;
+    font-weight:600;transition:.15s}
+  .gbtn:hover{background:var(--soft);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .gate-note{margin-top:18px;font-size:12px;color:var(--muted)}
+  .err{color:var(--red);font-size:13px;margin-top:14px;min-height:18px}
+  /* ---------- 主版面 ---------- */
+  #app{display:none;max-width:1100px;margin:0 auto;padding:0 16px 60px}
+  header.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:18px 4px;color:#e2e8f0;flex-wrap:wrap}
+  header.bar h1{font-size:20px;margin:0;display:flex;align-items:center;gap:10px}
+  .pill{background:rgba(255,255,255,.12);padding:5px 12px;border-radius:999px;font-size:13px}
+  .who{display:flex;align-items:center;gap:10px;font-size:13px;color:#cbd5e1}
+  .who button{background:rgba(255,255,255,.12);color:#fff;border:0;padding:7px 12px;
+    border-radius:8px;cursor:pointer;font-size:13px}
+  .panel{background:#fff;border-radius:16px;padding:20px;margin-top:6px;
+    box-shadow:0 18px 40px rgba(2,6,23,.35)}
+  .controls{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-bottom:16px;
+    padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .ctl{font-size:14px;font-weight:600;color:#334155;display:flex;align-items:center;gap:8px}
+  .ctl select{padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-size:15px;
+    font-weight:600;background:#fff;min-width:160px}
+  .ctl.chk{font-weight:500;color:#475569}
+  .ctl.chk input{width:17px;height:17px}
+  .summary{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .stat{flex:1;min-width:140px;background:var(--soft);border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px}
+  .stat .n{font-size:26px;font-weight:800}
+  .stat .l{font-size:13px;color:var(--muted)}
+  .stat.red .n{color:var(--red)} .stat.amber .n{color:var(--amber)}
+  .windowinfo{font-size:13px;color:var(--muted);margin:2px 2px 16px}
+  .course{margin-top:18px}
+  .course h3{font-size:15px;margin:0 0 10px;color:#334155;border-left:4px solid var(--brand);
+    padding-left:10px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .emp{border:1px solid var(--line);border-radius:12px;padding:13px 14px;cursor:pointer;
+    transition:.15s;background:#fff;position:relative}
+  .emp:hover{border-color:var(--brand);box-shadow:0 6px 18px rgba(37,99,235,.12);transform:translateY(-1px)}
+  .emp.due{border-color:var(--red);background:linear-gradient(180deg,#fff,#fff5f5)}
+  .emp.mgr{opacity:.55;cursor:not-allowed;background:var(--soft)}
+  .emp .nm{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
+  .emp .meta{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.6}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700}
+  .tag.due{background:var(--red-bg);color:var(--red)}
+  .tag.new{background:var(--amber-bg);color:var(--amber)}
+  .tag.mgr{background:#e2e8f0;color:#475569}
+  .tag.lv{background:#eff6ff;color:var(--brand)}
+  .tag.asst{background:#f3e8ff;color:#7e22ce}
+  /* ---------- 抽屜 ---------- */
+  #drawer{position:fixed;top:0;right:0;height:100%;width:min(94vw,460px);background:#fff;
+    box-shadow:-20px 0 60px rgba(0,0,0,.4);transform:translateX(100%);transition:.25s;
+    z-index:60;overflow-y:auto;padding:22px}
+  #drawer.open{transform:translateX(0)}
+  #drawer h2{margin:0 0 2px;font-size:20px}
+  #drawer .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .closeX{position:absolute;top:16px;right:18px;border:0;background:#f1f5f9;width:32px;height:32px;
+    border-radius:8px;cursor:pointer;font-size:18px}
+  .field{margin:14px 0}
+  .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#334155}
+  .field input,.field select{width:100%;padding:10px 12px;border:1px solid var(--line);
+    border-radius:9px;font-size:15px}
+  .box{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+  .box h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.3px}
+  .result{font-size:22px;font-weight:800}
+  .result.g{color:var(--green)} .result.s{color:var(--brand)} .result.d{color:var(--red)}
+  .choices{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .choices button{flex:1;min-width:90px;border:1px solid var(--line);background:#fff;padding:10px;
+    border-radius:9px;cursor:pointer;font-weight:600;font-size:13px}
+  .choices button.on{border-color:var(--brand);background:#eff6ff;color:var(--brand-d)}
+  .act{display:block;width:100%;padding:13px;border:0;border-radius:10px;background:var(--brand);
+    color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:10px}
+  .act:hover{background:var(--brand-d)}
+  .act.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6}
+  .lastpa{font-size:14px;line-height:1.8}
+  .lastpa .none{color:var(--amber)}
+  .modal{display:none;position:fixed;inset:0;background:rgba(2,6,23,.6);z-index:80;
+    align-items:center;justify-content:center;padding:20px}
+  .modalbox{background:#fff;border-radius:16px;padding:22px;width:min(94vw,420px);
+    max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  .modalbox .list{display:flex;flex-direction:column;gap:8px}
+  .modalbox .list a{display:block;padding:11px 14px;border:1px solid var(--line);border-radius:9px;
+    text-decoration:none;color:var(--ink);font-weight:600;font-size:14px;transition:.15s}
+  .modalbox .list a:hover{border-color:var(--brand);background:#eff6ff;color:var(--brand-d)}
+  @media(max-width:560px){.grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- 登入閘門 -->
+<div id="gate">
+  <div class="gatecard">
+    <div style="font-size:40px">🗂️</div>
+    <h1>PA 績效考核工具</h1>
+    <p>平鎮店 · 全店主管專用</p>
+    <button class="gbtn" id="loginBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.8-6.8C35.6 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.6 7l7.1 5.5c4.1-3.8 6.2-9.5 6.2-17z"/><path fill="#FBBC05" d="M10.5 28.4c-.5-1.5-.8-3.1-.8-4.9s.3-3.4.8-4.9l-7.9-6.2C.9 15.6 0 19.6 0 23.5s.9 7.9 2.6 11.1l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.1-5.5c-2 1.3-4.6 2.1-8.1 2.1-6.3 0-11.6-4.1-13.5-9.7l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>
+      使用 @pxmart 帳號登入
+    </button>
+    <div class="err" id="gateErr"></div>
+    <div class="gate-note">僅限 @pxmart.com.tw 公司帳號</div>
+  </div>
+</div>
+
+<!-- 主程式 -->
+<div id="app">
+  <header class="bar">
+    <h1>🗂️ PA 績效考核工具 <span class="pill" id="winPill"></span></h1>
+    <div class="who"><span id="whoTxt"></span><button id="adminBtn" onclick="uploadData()" style="display:none;background:#16a34a">🔧 同步雲端</button><button id="logoutBtn">登出</button></div>
+  </header>
+
+  <div class="panel">
+    <div class="controls">
+      <label class="ctl">我的課別
+        <select id="courseSel" onchange="render()"></select>
+      </label>
+      <label class="ctl chk"><input type="checkbox" id="onlyDue" checked onchange="render()"> 只看本期該做</label>
+    </div>
+    <div class="summary">
+      <div class="stat red"><div class="n" id="sDue">0</div><div class="l">本期該做 PA</div></div>
+      <div class="stat amber"><div class="n" id="sNew">0</div><div class="l">新人（首次每3個月）</div></div>
+      <div class="stat"><div class="n" id="sAll">0</div><div class="l">本課考核對象</div></div>
+    </div>
+    <div class="windowinfo" id="winInfo"></div>
+    <div id="courses"></div>
+  </div>
+</div>
+
+<!-- 員工抽屜 -->
+<div id="drawer">
+  <button class="closeX" onclick="closeDrawer()">✕</button>
+  <h2 id="dName"></h2>
+  <div class="sub" id="dSub"></div>
+
+  <div class="box" id="cheatsheet">
+    <h4>📋 填表小抄（照這個填表單）</h4>
+    <div class="lastpa" id="dCheat"></div>
+  </div>
+
+  <button class="act" onclick="doPA()" style="background:#16a34a">📝 做 PA（開啟本課表單，照小抄填）</button>
+  <div style="display:flex;gap:8px;margin-top:6px">
+    <button class="act ghost" onclick="openTests()" style="flex:1;padding:9px;margin:0">📊 測驗分數</button>
+    <button class="act ghost" onclick="lastReceipt()" style="flex:1;padding:9px;margin:0">📧 上次回條</button>
+    <button class="act ghost" onclick="showAllForms()" style="flex:1;padding:9px;margin:0">🔎 所有表單</button>
+  </div>
+  <div class="hint">照上方小抄把基本資料、目前職級、測驗分數、上次各項打勾填進表單；填完按表單「查看分數」得到本次結果。</div>
+
+  <div class="field">
+    <label>夥伴 Email（自動帶入；可編輯後儲存到共用資料庫，無 email 可空白）</label>
+    <div style="display:flex;gap:8px">
+      <input type="email" id="dEmail" placeholder="employee@pxmart.com.tw" style="flex:1">
+      <button onclick="saveEmailBtn()" style="border:1px solid var(--brand);background:#eff6ff;color:var(--brand-d);border-radius:9px;padding:0 14px;font-weight:700;cursor:pointer">儲存</button>
+    </div>
+    <div class="hint" id="emailMsg"></div>
+  </div>
+
+  <div class="field">
+    <label>本次考核結果（看表單「查看分數」後選，不用自己算）</label>
+    <div style="display:flex;gap:8px">
+      <select id="dResultSel" style="flex:1"></select>
+      <input id="dScoreEmail" type="number" placeholder="分數(選填)" style="width:110px">
+    </div>
+  </div>
+
+  <button class="act ghost" onclick="genMail()">產生罐頭訊息 Email 草稿</button>
+  <div class="hint">寄信由你親自按下送出；無 email 的夥伴可留空白。</div>
+</div>
+
+<!-- 所有 PA 表單 modal -->
+<div id="allFormsModal" class="modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modalbox">
+    <button class="closeX" onclick="document.getElementById('allFormsModal').style.display='none'">✕</button>
+    <h3 style="margin:0 0 4px">所有 PA 表單</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:12px">自動連到的表單不對時，點下面正確的那份。</div>
+    <div class="list"></div>
+  </div>
+</div>
+
+<!-- 測驗成績 modal -->
+<div id="testsModal" class="modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modalbox">
+    <button class="closeX" onclick="document.getElementById('testsModal').style.display='none'">✕</button>
+    <h3 style="margin:0 0 4px">相關測驗</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:12px">點開測驗成績表，找這位員工的分數填進表單。</div>
+    <div class="list"></div>
+  </div>
+</div>
+
+<!-- 名單/測驗/email 資料：僅本機載入（供上傳雲端用）；部署版只從 Firestore 讀，不公開個資 -->
+<script>if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
+  document.write('<scr'+'ipt src="roster_202607.js?v='+Date.now()+'"><\/scr'+'ipt>');
+  document.write('<scr'+'ipt src="emails_db.js?v='+Date.now()+'"><\/scr'+'ipt>');
+  document.write('<scr'+'ipt src="test_scores.js?v='+Date.now()+'"><\/scr'+'ipt>');
+}</script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ====== Firebase 設定（turnover-6307f） ====== */
+const firebaseConfig = {
+  apiKey:"AIzaSyCiqbX0S95Kgz4KWuThd3w-76PqHzikIl4",
+  authDomain:"turnover-6307f.firebaseapp.com",
+  projectId:"turnover-6307f",
+  appId:"1:848982432475:web:9741865d0d14578c1c4afe"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const provider = new firebase.auth.GoogleAuthProvider();
+const ALLOW_DOMAIN = "@pxmart.com.tw";
+
+/* ====== 安全資料層（Firestore pa_secure，登入才可讀）======
+   三份文件：roster(名單)、tests(測驗)、emails。員工個資不放公開檔，部署後外人讀不到。
+   內建檔(roster_*.js/test_scores.js/emails_db.js)僅本機用於上傳種子，不部署。 */
+window.ROSTER = window.ROSTER || []; window.PERIOD = window.PERIOD || '';
+window.SAFETY_SCORES = window.SAFETY_SCORES || {}; window.EMAIL_DB = window.EMAIL_DB || {};
+window.ADV_SCORES = window.ADV_SCORES || {};
+const SECURE = db.collection('pa_secure');
+let EMAIL_LIVE = {}, SAFETY_FS = null, ADV_FS = null;
+const ADMIN = 'cchlu@pxmart.com.tw';   // 可上傳雲端資料的管理者
+
+function safetyScore(id){
+  const k=String(id||'').replace(/\D/g,''), a='8'+k.slice(-6), src=SAFETY_FS||SAFETY_SCORES;
+  return src[k]!=null?src[k]:(src[a]!=null?src[a]:null);
+}
+// 該工號的進階測驗分數 {測驗名:分數}
+function advFor(id){
+  const k=String(id||'').replace(/\D/g,''), a='8'+k.slice(-6), src=ADV_FS||ADV_SCORES;
+  return src[k]||src[a]||null;
+}
+function loadSecure(){
+  return Promise.all([SECURE.doc('roster').get(),SECURE.doc('tests').get(),SECURE.doc('emails').get()])
+   .then(([r,t,em])=>{
+     if(r.exists&&Array.isArray(r.data().list)&&r.data().list.length){ ROSTER=r.data().list; PERIOD=r.data().period||PERIOD; }
+     if(t.exists&&t.data().safety) SAFETY_FS=t.data().safety;
+     if(t.exists&&t.data().adv) ADV_FS=t.data().adv;
+     if(em.exists) EMAIL_LIVE=em.data().map||{};
+     console.log('雲端資料：名單 '+ROSTER.length+'、email '+Object.keys(EMAIL_LIVE).length+(SAFETY_FS?'、測驗已載':'（測驗用內建）'));
+   }).catch(e=>console.warn('讀雲端資料失敗，改用內建：',e));
+}
+function lookupEmail(emp){
+  const k=String(emp.id||'').replace(/\D/g,''), a='8'+k.slice(-6);
+  if(EMAIL_LIVE[k]&&EMAIL_LIVE[k].email) return EMAIL_LIVE[k].email;
+  if(EMAIL_DB[k]&&EMAIL_DB[k].email) return EMAIL_DB[k].email;        // 內建種子
+  return (EMAIL_DB[a]&&EMAIL_DB[a].email)||'';
+}
+function saveEmail(emp, email){
+  if(!email) return Promise.resolve();
+  const k=String(emp.id||'').replace(/\D/g,'');
+  EMAIL_LIVE[k]={name:emp.name,course:emp.course,email:email,by:(auth.currentUser&&auth.currentUser.email)||''};
+  const patch={}; patch[k]=EMAIL_LIVE[k];
+  return SECURE.doc('emails').set({map:patch},{merge:true});         // 只更新該工號，不動其他人
+}
+// 管理者一次性：把本機內建資料上傳到雲端 pa_secure
+function uploadData(){
+  if(!confirm('把目前內建的「名單＋測驗＋email」上傳到雲端 pa_secure（覆蓋名單/測驗）？')) return;
+  Promise.all([
+    SECURE.doc('roster').set({period:PERIOD,list:ROSTER,updatedAt:Date.now()}),
+    SECURE.doc('tests').set({safety:SAFETY_SCORES,adv:ADV_SCORES,updatedAt:Date.now()}),
+    SECURE.doc('emails').set({map:Object.assign({},EMAIL_DB,EMAIL_LIVE)},{merge:true})
+  ]).then(()=>alert('✓ 已上傳到雲端 pa_secure（名單 '+ROSTER.length+' 人、測驗 '+Object.keys(SAFETY_SCORES).length+' 筆）'))
+    .catch(e=>alert('上傳失敗：'+e.message+'\n（多半是安全規則還沒開放 pa_secure）'));
+}
+
+/* ====== 後端 API（Apps Script Web App）======
+   部署 Code.gs 後，把 /exec 網址貼到這裡。留空＝只用內建名單（roster 檔）。 */
+const WEB_APP_URL = "";  // 例：https://script.google.com/macros/s/AKfy.../exec
+// 嘗試抓後端即時名單；失敗就用內建 ROSTER（後備）
+function loadData(){
+  if(!WEB_APP_URL) return Promise.resolve();
+  return fetch(WEB_APP_URL).then(r=>r.json()).then(d=>{
+    if(d && d.ok && Array.isArray(d.roster) && d.roster.length){
+      ROSTER = d.roster; PERIOD = d.period||PERIOD;
+      console.log('後端名單載入：'+PERIOD+'（'+ROSTER.length+'人）');
+    }
+  }).catch(e=>{ console.warn('後端載入失敗，改用內建名單：',e); });
+}
+
+provider.setCustomParameters({hd:'pxmart.com.tw', prompt:'select_account'});
+document.getElementById('loginBtn').onclick = ()=>{
+  document.getElementById('gateErr').textContent='開啟 Google 登入視窗…';
+  auth.signInWithPopup(provider).then(r=>{
+    document.getElementById('gateErr').textContent='';
+  }).catch(e=>{
+    document.getElementById('gateErr').textContent='登入失敗：'+e.code+' '+e.message;
+  });
+};
+document.getElementById('logoutBtn').onclick = ()=>auth.signOut();
+
+auth.onAuthStateChanged(user=>{
+  if(user && user.email && user.email.toLowerCase().endsWith(ALLOW_DOMAIN)){
+    document.getElementById('gate').style.display='none';
+    document.getElementById('app').style.display='block';
+    document.getElementById('whoTxt').textContent=user.displayName+'（'+user.email+'）';
+    if(user.email.toLowerCase()===ADMIN) document.getElementById('adminBtn').style.display='inline-block';
+    loadSecure().then(render);
+  }else if(user){
+    auth.signOut();
+    document.getElementById('gateErr').textContent='此工具僅限 @pxmart.com.tw 帳號登入。';
+  }else{
+    document.getElementById('gate').style.display='flex';
+    document.getElementById('app').style.display='none';
+  }
+});
+
+/* ====== 名單由外部檔 roster_202607.js 載入（全店全課別，官方 PA名單202607，含 PERIOD 與 ROSTER）。
+   換月份只要換載入的 roster_{YYYYMM}.js；下一步改由 Apps Script 即時讀檔自動化。 ====== */
+
+/* ====== 排程引擎 ====== */
+const WINDOWS=[1,4,7,10];                 // 可做 PA 的月份
+const TODAY=new Date();                    // 今天
+
+function ym(d){return d.getFullYear()*12+d.getMonth();}      // 年月序號
+function addMonths(d,n){return new Date(d.getFullYear(),d.getMonth()+n,d.getDate());}
+function monthsSince(d){return ym(TODAY)-ym(d);}
+
+// 把里程碑日順延到「下一個 1/4/7/10 窗口月」第一天
+function deferToWindow(d){
+  let y=d.getFullYear(), m=d.getMonth()+1;  // 1-12
+  for(let k=0;k<24;k++){
+    let mm=((m-1+k)%12)+1, yy=y+Math.floor((m-1+k)/12);
+    if(WINDOWS.includes(mm)) return new Date(yy,mm-1,1);
+  }
+  return d;
+}
+// 本期窗口＝今天起算下一個（或當月）窗口
+function currentWindow(){ return deferToWindow(new Date(TODAY.getFullYear(),TODAY.getMonth(),1)); }
+
+// 計算某員工下一次該做 PA
+// 規則：有上次PA → 上次+6個月（半年制）；全新無上次但到職未滿一年 → 到職+3個月（首次PA）；
+//      資深卻無上次PA → 資料缺，無法判定（待各課回覆表帶入）
+function nextPA(emp){
+  const hire=new Date(emp.hire);
+  const tenureM=monthsSince(hire);
+  if(emp.last){
+    return {date:deferToWindow(addMonths(new Date(emp.last.date),6)), isNew:false, hasLast:true, unknown:false};
+  }
+  if(tenureM<12){
+    // 沒有上次紀錄＝第一次做 PA（剛滿3個月）＝新人
+    return {date:deferToWindow(addMonths(hire,3)), isNew:true, hasLast:false, unknown:false};
+  }
+  return {date:null, isNew:false, hasLast:false, unknown:true};
+}
+
+function fmt(d){return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();}
+function fmtYM(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月';}
+
+/* ====== 分數 → 結果 對照（累計加總，已確認） ====== */
+const BANDS=[
+ {min:0, max:9 , fail:true, dropTo:0, code:'D0', label:'D0 未達一級標準'},
+ {min:10,max:12, level:1, plus:false},
+ {min:13,max:15, level:1, plus:true},
+ {min:16,max:22, fail:true, dropTo:1, code:'D1', label:'D1 未達二級標準，降為一級'},
+ {min:23,max:24, level:2, plus:false},
+ {min:25,max:27, level:2, plus:true},
+ {min:28,max:37, fail:true, dropTo:2, code:'D2', label:'D2 未達三級標準，降為二級'},
+ {min:38,max:39, level:3, plus:false},
+ {min:40,max:42, level:3, plus:true},
+ {min:43,max:48, fail:true, dropTo:3, code:'D3', label:'D3 未達四級標準，降為三級'},
+ {min:49,max:52, level:4, plus:false},
+];
+const LV_CN=['','一','二','三','四'];
+function bandOf(score){return BANDS.find(b=>score>=b.min&&score<=b.max)||null;}
+
+// 依分數＋目前職級算結果
+function judge(score, curLevel){
+  const b=bandOf(score);
+  if(!b) return {kind:'—', code:'—', label:'分數超出範圍（0–52）', css:'d'};
+  if(b.fail) return {kind:'降級', code:b.code, label:b.label, css:'d'};
+  const L=b.level, plus=b.plus?'+':'';
+  const cur = curLevel||1;                 // 無職級者視為一級評
+  if(L>cur)  return {kind:'晉級', code:'G'+L+plus, label:'G'+L+plus+' 晉級'+LV_CN[L]+'級'+(plus?'，下次考核下個職級':''), css:'g'};
+  if(L===cur)return {kind:'維持', code:'S'+L+plus, label:'S'+L+plus+' 維持'+LV_CN[L]+'級'+(plus?'，下次考核下個職級':''), css:'s'};
+  return {kind:'降級', code:'D'+L, label:'D'+L+' 未達'+LV_CN[cur]+'級標準，降為'+LV_CN[L]+'級', css:'d'};
+}
+
+/* ====== 畫面 ====== */
+// 初始化課別下拉（只做一次）
+function initCourseSel(){
+  const sel=document.getElementById('courseSel');
+  if(sel.options.length) return;
+  const courses=[...new Set(ROSTER.map(e=>e.course))];
+  sel.innerHTML='<option value="__ALL__">全部課別</option>'+
+    courses.map(c=>'<option value="'+c+'">'+c+'</option>').join('');
+}
+
+function render(){
+  initCourseSel();
+  const win=currentWindow();
+  const selCourse=document.getElementById('courseSel').value;
+  const onlyDue=document.getElementById('onlyDue').checked;
+  document.getElementById('winPill').textContent='本期：'+fmtYM(win);
+  document.getElementById('winInfo').textContent=
+    '排程規則：半年一次（新人首次到職+3個月），里程碑＝上次考核+6個月，不在 1·4·7·10 月則順延。本期＝'+fmtYM(win)+'（今天之後最近的窗口）。';
+
+  const courses=[...new Set(ROSTER.map(e=>e.course))]
+    .filter(c=>selCourse==='__ALL__'||c===selCourse);
+
+  let due=0,news=0,allCnt=0;
+  const cont=document.getElementById('courses'); cont.innerHTML='';
+
+  courses.forEach(course=>{
+    const members=ROSTER.filter(e=>e.course===course && e.role!=='mgr');
+    const rows=[];
+    members.forEach(e=>{
+      const np=nextPA(e);
+      allCnt++;
+      const isDue = np.date && ym(np.date)<=ym(win);
+      if(isDue)due++;
+      if(np.isNew)news++;
+      if(onlyDue && !isDue) return;          // 只看本期該做
+      rows.push({e,np,isDue});
+    });
+    if(!rows.length) return;                  // 此課本期無人就不顯示區塊
+    const wrap=document.createElement('div'); wrap.className='course';
+    wrap.innerHTML='<h3>'+course+'（'+rows.length+'）</h3>';
+    const grid=document.createElement('div'); grid.className='grid';
+    rows.forEach(({e,np,isDue})=>{
+      const card=document.createElement('div'); card.className='emp';
+      if(isDue)card.classList.add('due');
+      let tags='';
+      if(isDue)tags+='<span class="tag due">本期應做</span>';
+      if(np.isNew)tags+='<span class="tag new">新人</span>';
+      if(e.role2==='asst')tags+='<span class="tag asst">助理·部門主管批閱</span>';
+      const lv = e.level?('<span class="tag lv">'+(e.last?'S':'G')+e.level+'</span>'):'<span class="tag new">新進</span>';
+      const nextTxt = np.unknown
+        ? '<span style="color:var(--amber)">下次應做：缺上次PA資料，待回覆表帶入</span>'
+        : '下次應做：'+fmtYM(np.date);
+      card.innerHTML='<div class="nm">'+e.name+' '+lv+'</div>'+
+        '<div class="meta">工號 '+e.id+'｜到職 '+e.hire+'<br>'+nextTxt+'</div>'+
+        '<div style="margin-top:8px">'+tags+'</div>';
+      card.onclick=()=>openDrawer(e,np);
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid); cont.appendChild(wrap);
+  });
+
+  if(!cont.children.length){
+    cont.innerHTML='<div style="padding:30px;text-align:center;color:var(--muted)">'+
+      (onlyDue?'本期（'+fmtYM(win)+'）此課別沒有需要做 PA 的人員。':'此課別無考核對象。')+'</div>';
+  }
+  document.getElementById('sDue').textContent=due;
+  document.getElementById('sNew').textContent=news;
+  document.getElementById('sAll').textContent=allCnt;
+}
+
+/* ====== 抽屜 ====== */
+let CUR=null;
+const LV_FULL=['','一級','二級','三級','四級'];
+function currentRankStr(e){
+  if(!e.last||!e.level) return '新進三個月內夥伴';
+  return LV_FULL[e.level]+' G'+e.level+(/\+/.test(e.last.result||'')?'+':'');
+}
+function cell(k,v,hl){return '<tr><td style="color:#64748b;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">'+k+'</td><td style="font-weight:700'+(hl?';color:#16a34a':'')+'">'+v+'</td></tr>';}
+function openDrawer(e,np){
+  CUR=e;
+  document.getElementById('dName').textContent=e.name+'（'+ (e.level?('目前 '+LV_FULL[e.level]):'新進') +'）';
+  const approver = e.role2==='asst' ? '部門主管批閱' : '課長批閱';
+  document.getElementById('dSub').innerHTML=e.course+'｜下次應做 '+(np.date?fmtYM(np.date):'—')+
+    (e.role2==='asst'?' ｜<b style="color:#7e22ce">助理·'+approver+'</b>':'');
+  // 填表小抄
+  const safe=(typeof safetyScore==='function')?safetyScore(e.id):null;
+  const adv=advFor(e.id);
+  const advStr = adv ? Object.keys(adv).map(t=>t+' '+adv[t]+'分'+(adv[t]>=80?' ✓':' ⚠')).join('；') : '（按 📊 測驗分數查該課測驗表）';
+  const last = e.last ? ('上次 '+e.last.result+'（'+(e.last.score??'—')+' 分，'+e.last.date.slice(0,7).replace('-','/')+'）') : '新進，無上次考核';
+  let html='<table style="font-size:14px;line-height:1.5;border-collapse:collapse">'+
+    cell('部門/課別', e.course + (e.role2==='asst'?'（助理）':'')) +
+    cell('工號', e.id) +
+    cell('姓名', e.name) +
+    cell('目前職級', currentRankStr(e)) +
+    cell('安全意識分數', safe!=null? (safe+' 分'+(safe>=80?' ✓及格':' ⚠未及格')) : '（查測驗表）', true) +
+    cell('進階測驗', advStr, true) +
+    cell('上次考核', last) +
+    cell('各項打勾', '按下方「📧 上次回條」看上次每項，逐項確認') +
+    '</table>';
+  document.getElementById('dCheat').innerHTML=html;
+  // 結果下拉
+  const sel=document.getElementById('dResultSel');
+  sel.innerHTML='<option value="">— 看表單分數後選結果 —</option>'+RESULT_OPTS.map(o=>'<option>'+o+'</option>').join('');
+  document.getElementById('dScoreEmail').value='';
+  document.getElementById('dEmail').value=lookupEmail(e);
+  document.getElementById('emailMsg').textContent='';
+  document.getElementById('drawer').classList.add('open');
+}
+const RESULT_OPTS=['G2 晉級二級','G2+ 晉級二級，下次考核下個職級','G3 晉級三級','G3+ 晉級三級，下次考核下個職級','G4 晉級四級',
+ 'S1 維持一級','S1+ 維持一級，下次考核下個職級','S2 維持二級','S2+ 維持二級，下次考核下個職級','S3 維持三級','S3+ 維持三級，下次考核下個職級','S4 維持四級',
+ 'D0 未達一級標準','D1 未達二級標準，降為一級','D2 未達三級標準，降為二級','D3 未達四級標準，降為三級'];
+/* 各課相關測驗成績表（檔名→fileId）；安全意識為全員共用 */
+const SAFETY_SHEET='1x1t8So4zNVOVYwcC1MKEbmd63QedTBmG';
+const TEST_SHEETS={
+  '蔬果課':[['蔬果商品知識','1n1i9BTZmG0NadiB9CGPDEwGlZ058vJ73']],
+  '水產課':[['水產商品知識','1dw7iApo94HHmOthaijPblOwyFV3p_hd-'],['水產成本與收益','1sDZwOD4IbjDQyYxl9wzICWV1wAXg-q0e'],['水產訂貨作業','1fkdAgDWrJCD03bQ1SPEmN-eaTeUwPU11']],
+  '肉品課':[['肉品商品知識','1RODEBqKOZQlyToSNdnf4NjvK6tErbhny'],['肉品-成本與收益','1CyVljPyi4Bl_WvSsrKJMxD_JdJjeFGWP']],
+  '熟餐課':[['熟食商品知識','1xg3eF-ANJUlIEFLgEa1UajzVky2_HqUT']],
+  '烘焙課':[['烘焙商品知識','1VMcClDqbzGthnX5-bV09RjdsYovpJF4t'],['點心商品知識','1CN03I-O00H0dj4n2DOXhwPF4X3S-HxNI']],
+  '日配課':[['日配商品知識','1R1I2My33z_xj3EeCV-olUx_32x5a5NgZ']],
+  '飲料課':[['飲料商品知識','14iC3lFEVXaTnYlNFHO9-uit0xHr5LANJ']],
+  '糖餅課':[['糖餅商品知識','1kqtCRhdAJKcyMxYUxmb44u0YF4RU6JKV']],
+  '米油課':[['米油商品知識','1UyXldE2Gl_CtPgC8hE4rDthuiXnRXybJ']],
+  '家美課':[['家美商品知識','1Creur38MlWx7DxH7vAbI7X-hV-ETNo2s']],
+  '汽百課':[['汽百商品知識','1wqklZhd2C-K5cLewLtoWeF8Yle1JqyKa']],
+  '文品課':[['文品商品知識','18a7CYt5RYU22pbmeMo6OLOky6dQiUd-c']],
+  '家飾課':[['家飾商品知識','17V-Z_2SxXnCzFbI-IFga2et4ZuWtF2ol'],['DIY商品知識','1LN_Kv7g3tb7LtlXsB1C6VCt3CYMjAmiV']],
+  '家電課':[['家電商品知識','1x-wH6FxRb2C4WNIux69itUHRDkzQrkii'],['3C商品知識','1jslH7xgR8LQqzDZHRTiMd3oTlvd8--hQ']],
+  '服飾課':[['56鞋商品知識','1BRTSgrvH2z1xq7p9FAYS_lKPOk7BA-G0']],
+  '顧客服務課':[['帳管特殊事件處理流程','1soJSjkulitjtNAWVcg-WpiseMOkY-418']],
+  '維安課':[['維修設備知識','1naH3fdNmGg8ZLcGku4EDriz1nLFnh476'],['設備知識','1Ofwp0Ern8ZE4reSlU1vNBPvHxvdbKD_G'],['維修-工作安全','1ELsR8ytBCkwIzmxjI0HalEQklNw8zOL6']],
+  '倉管課':[['倉管商品知識','1A5O0uJDSLP03uimdJIEMC4se9IKX80By']],
+  '行政課':[['報表閱讀','18yreU-wFwAyZW4nvGN5OjBdy82LTVHVM'],['人資報表閱讀','1Y3bh3inmZot8PBzG1VjV-AwbMRBWK4Ns']],
+  '市調課':[['市調商品知識','1SqgvprEhBkuRPI0_RLIRg4P3CVFWq964'],['市調報表閱讀','1ar24lrknMeCS7rflmix9MrQVrDw7wTmO']],
+  '接待課':[['接待特殊事件處理流程','1AylOVbwde1raDbFh3jEadVyF3BCGcgmV']],
+  '線上商業課':[['資訊安全知識','1k0fTycgcgBUXn6dp1TwlF9zhAjVB9Lq6']],
+  '資訊課':[['資訊安全知識','1k0fTycgcgBUXn6dp1TwlF9zhAjVB9Lq6']],
+};
+// 開 Gmail 搜尋該員工上次 PA 回條（看上次每項打勾）
+function lastReceipt(){
+  if(!CUR) return;
+  const q='"'+CUR.name+'" 員工專業績效考核表';
+  window.open('https://mail.google.com/mail/u/0/#search/'+encodeURIComponent(q),'_blank');
+}
+// 依該員工課別，列出相關測驗成績表（含全員安全意識）
+function openTests(){
+  if(!CUR) return;
+  const fv='https://drive.google.com/file/d/';
+  let list=[['🛡️ 安全意識（全員）',SAFETY_SHEET]].concat(TEST_SHEETS[CUR.course]||[]);
+  const m=document.getElementById('testsModal');
+  m.querySelector('h3').textContent=CUR.name+'｜'+CUR.course+' 相關測驗';
+  m.querySelector('.list').innerHTML=list.map(([n,id])=>'<a href="'+fv+id+'/view" target="_blank">'+n+'</a>').join('')
+    +'<a href="https://drive.google.com/drive/folders/1dWf-k4618G5zuHWIPtyM_7nJ83Ui7LdO" target="_blank" style="color:#64748b">📁 所有測驗資料夾</a>';
+  m.style.display='flex';
+}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open');}
+function saveEmailBtn(){
+  if(!CUR) return;
+  const v=document.getElementById('dEmail').value.trim();
+  const msg=document.getElementById('emailMsg');
+  if(!/@/.test(v)){msg.style.color='var(--red)';msg.textContent='請輸入有效 email';return;}
+  msg.style.color='var(--muted)';msg.textContent='儲存中…';
+  saveEmail(CUR,v).then(()=>{msg.style.color='var(--green)';msg.textContent='✓ 已存入共用資料庫，下次自動帶入';})
+    .catch(e=>{msg.style.color='var(--red)';msg.textContent='儲存失敗：'+e.message;});
+}
+
+
+/* ====== 各課 PA 考核表單對應（做 PA 用；陸續補齊全店各課） ====== */
+const F='https://docs.google.com/forms/d/'; const VF='/viewform';
+const FORM_URLS={
+  // 後勤 / 控管
+  '維安課':F+'1MeZoR9h8A7wUEulYe9Z4kQ0E-BuZomYl7PW8nfUHWFM'+VF, // 安管課員(含維修)
+  '倉管課':F+'18Lna31wHFVVyrzZ1LcFpfBWq_17jenXrHQVzPaauOvg'+VF,
+  '市調課':F+'1evZqXOX6E2aYqV-ZALQJeipUeT_fWbczBlYADklpj44'+VF,
+  '資訊課':F+'1ziuk2vUSsobCtok2N7h1f-M-8jAlzxwXPaXC4nIv5iw'+VF,
+  // 生鮮
+  '蔬果課':F+'1YIUd-7zAm5vLM-HMOi4GxesJx2X-_kuiVm75fJkF9As'+VF,
+  '肉品課':F+'1SQZ9qsX8PKn-XHte7LZ1UZH3Yakzss486eKmcj5Ceto'+VF,
+  '熟餐課':F+'1MD4VhvrN8aYKPhEivLbjy6TJrEa7l0wtjOQvo-vvk3Q'+VF, // 熟食課員
+  '烘焙課':F+'1EDzxxG8YiXgeNH1OAGhcHP4NIR-ZgiOtswFVt0jQOCQ'+VF,
+  // 客服
+  '線上商業課':F+'1O8uiLtpM9SNKrW8uNrGTnhFiPjVYw9Jj0uL80y5sSOQ'+VF,
+  '接待課':F+'1Xlsa7nY8owq1C0KnwHeYCwCjD1CIODJJeLVUbynQuKc'+VF,
+  '顧客服務課':F+'1CUsA4iwX3Yh-XIOL632-DDuG54ZT8_A-f6O9fxjTNDk'+VF, // 帳管課員(收銀)，待確認
+  // 部門室助理共用
+  '__助理__':F+'1_02Stct2D8o501e06hwul4nYUhzAIcP4rSpC7neTMOg'+VF,
+  // 大宗部(FMCG)＋百貨部(NF) 各課共用「商業課員PA問卷」
+  '日配課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '飲料課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '糖餅課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '米油課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '家美課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '汽百課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '文品課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '家飾課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '家電課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  '服飾課':F+'1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'+VF,
+  // 水產課 / 行政課員 → 待確認
+};
+// 所有 PA 表單（連錯時手動選用）
+const ALL_FORMS=[
+  ['商業課員(大宗/百貨各課)','1BAY_Nn3_D4yNqA2J3E9FP68y5mM5lU6sVx2y6qTV5dg'],
+  ['蔬果課員','1YIUd-7zAm5vLM-HMOi4GxesJx2X-_kuiVm75fJkF9As'],
+  ['肉品課員','1SQZ9qsX8PKn-XHte7LZ1UZH3Yakzss486eKmcj5Ceto'],
+  ['熟食課員','1MD4VhvrN8aYKPhEivLbjy6TJrEa7l0wtjOQvo-vvk3Q'],
+  ['烘焙課員','1EDzxxG8YiXgeNH1OAGhcHP4NIR-ZgiOtswFVt0jQOCQ'],
+  ['點心課員','1Oa6ukp8OtgMybbRwAiFw39IZiH2kY7TZgXDl5nqkMFU'],
+  ['倉管課員','18Lna31wHFVVyrzZ1LcFpfBWq_17jenXrHQVzPaauOvg'],
+  ['安管課員(含維修)','1MeZoR9h8A7wUEulYe9Z4kQ0E-BuZomYl7PW8nfUHWFM'],
+  ['市調課員','1evZqXOX6E2aYqV-ZALQJeipUeT_fWbczBlYADklpj44'],
+  ['資訊課員','1ziuk2vUSsobCtok2N7h1f-M-8jAlzxwXPaXC4nIv5iw'],
+  ['線上商業課員','1O8uiLtpM9SNKrW8uNrGTnhFiPjVYw9Jj0uL80y5sSOQ'],
+  ['接待課員','1Xlsa7nY8owq1C0KnwHeYCwCjD1CIODJJeLVUbynQuKc'],
+  ['帳管課員(收銀)','1CUsA4iwX3Yh-XIOL632-DDuG54ZT8_A-f6O9fxjTNDk'],
+  ['帳管課員(現金辦公室)','1RUP-stpq4VnLIP3MuaOVXK9h6qCKW2FkGl4UMlSwL30'],
+  ['接待課美工','1jSeC1rhpyzI6gTbPvxhQJAtlX657VmCwAYick95_d_I'],
+  ['店部門助理','1_02Stct2D8o501e06hwul4nYUhzAIcP4rSpC7neTMOg'],
+];
+// 助理優先用助理問卷
+function formFor(emp){ return emp.role2==='asst' ? FORM_URLS['__助理__'] : FORM_URLS[emp.course]; }
+function showAllForms(){
+  const m=document.getElementById('allFormsModal');
+  m.querySelector('.list').innerHTML=ALL_FORMS.map(([n,id])=>
+    '<a href="'+F+id+VF+'" target="_blank">'+n+'</a>').join('');
+  m.style.display='flex';
+}
+function doPA(){
+  if(!CUR) return;
+  const url=CUR.formUrl||formFor(CUR);
+  if(!url){alert('「'+CUR.course+'」的 PA 考核表單連結尚未設定，請改用「所有 PA 表單」手選。');return;}
+  // 部署後端後：先向後端取「帶入上次內容」的預填連結
+  if(WEB_APP_URL){
+    const fid=(url.match(/forms\/d\/([^/]+)/)||[])[1];
+    fetch(WEB_APP_URL+'?action=prefill&form='+fid+'&id='+encodeURIComponent(CUR.id))
+      .then(r=>r.json()).then(d=>window.open(d&&d.ok&&d.url?d.url:url,'_blank'))
+      .catch(()=>window.open(url,'_blank'));
+  }else{
+    window.open(url,'_blank');
+  }
+}
+
+/* ====== 罐頭訊息 Email 草稿（課長→夥伴範本） ====== */
+function genMail(){
+  const result=document.getElementById('dResultSel').value;
+  if(!result){alert('請先在「本次考核結果」下拉選擇（看表單查看分數後選）');return;}
+  const e=CUR, score=document.getElementById('dScoreEmail').value, to=document.getElementById('dEmail').value;
+  const deadline=fmt(addMonths(TODAY,1));
+  const body=
+`親愛的 ${e.name} 夥伴您好：
+
+經過課長本人與您共同完成的這份 PA 問卷，達成共識，以下為本次您的 PA 考核結果：
+
+${score?'　PA 分數：'+score+'\n':''}　PA 結果：${result}
+
+隨信附上您的 PA 問卷結果。
+如您同意以上考核結果，請勾選「我同意本次考核結果正確無誤」，並回信給我。
+請於 ${deadline} 前回信，以利後續相關作業。
+
+謝謝您`;
+  const url='https://mail.google.com/mail/?view=cm&fs=1'+
+    '&to='+encodeURIComponent(to||'')+
+    '&su='+encodeURIComponent('【PA 考核結果確認】'+e.name)+
+    '&body='+encodeURIComponent(body);
+  window.open(url,'_blank');
+}
+</script>
+</body>
+</html>
