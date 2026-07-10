@@ -212,6 +212,27 @@
   </div>
 </div>
 
+<!-- 罐頭訊息 Email（轉寄模式）modal -->
+<div id="mailModal" class="modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modalbox" style="width:min(94vw,560px)">
+    <button class="closeX" onclick="document.getElementById('mailModal').style.display='none'">✕</button>
+    <h3 style="margin:0 0 4px">罐頭訊息（轉寄 PA 問卷信）</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:10px" id="mailWho"></div>
+    <ol style="font-size:13px;color:#334155;margin:0 0 10px;padding-left:20px;line-height:1.8">
+      <li>按「① 複製罐頭內容」。</li>
+      <li>按「② 開 Gmail 找 PA 信」→ 打開那封問卷信 → 按「轉寄」。</li>
+      <li>收件人填夥伴 email（無 email 留空白），內文最上方 Ctrl+V 貼上，寄出。</li>
+    </ol>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <button class="act" style="flex:1;margin:0;padding:11px" onclick="copyMailBody()">① 複製罐頭內容</button>
+      <button class="act" style="flex:1;margin:0;padding:11px;background:#16a34a" onclick="openMailSearch()">② 開 Gmail 找 PA 信</button>
+    </div>
+    <div class="hint" id="mailCopyMsg" style="min-height:16px;margin:0 0 8px"></div>
+    <div id="mailPreview" style="border:1px solid var(--line);border-radius:10px;padding:12px;max-height:44vh;overflow-y:auto;background:var(--soft)"></div>
+    <button class="act ghost" style="margin-top:10px;padding:9px" onclick="composeFallback()">找不到 PA 信？改開一般新信（自動帶入文字內容）</button>
+  </div>
+</div>
+
 <!-- 名單/測驗/email 資料：僅本機載入（供上傳雲端用）；部署版只從 Firestore 讀，不公開個資 -->
 <script>if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
   document.write('<scr'+'ipt src="roster_202607.js?v='+Date.now()+'"><\/scr'+'ipt>');
@@ -477,7 +498,7 @@ let CUR=null;
 const LV_FULL=['','一級','二級','三級','四級'];
 function currentRankStr(e){
   if(!e.last||!e.level) return '新進三個月內夥伴';
-  return LV_FULL[e.level]+' G'+e.level+(/\+/.test(e.last.result||'')?'+':'');
+  return LV_FULL[e.level]+'（上次結果 '+(e.last.result||('G'+e.level))+'）';
 }
 function cell(k,v,hl){return '<tr><td style="color:#64748b;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top">'+k+'</td><td style="font-weight:700'+(hl?';color:#16a34a':'')+'">'+v+'</td></tr>';}
 function openDrawer(e,np){
@@ -540,11 +561,14 @@ const TEST_SHEETS={
   '線上商業課':[['資訊安全知識','1k0fTycgcgBUXn6dp1TwlF9zhAjVB9Lq6']],
   '資訊課':[['資訊安全知識','1k0fTycgcgBUXn6dp1TwlF9zhAjVB9Lq6']],
 };
-// 開 Gmail 搜尋該員工上次 PA 回條（看上次每項打勾）
+// 開 Drive 回條資料夾，搜尋該員工上次 PA 的 PDF（看上次每項打勾）
+const RECEIPT_FOLDER='1yUFNy7KFJzMgJ2elCPETlgsl-ilRpG7P';   // 夥伴PA同意信雲端資料夾
 function lastReceipt(){
   if(!CUR) return;
-  const q='"'+CUR.name+'" 員工專業績效考核表';
-  window.open('https://mail.google.com/mail/u/0/#search/'+encodeURIComponent(q),'_blank');
+  if(!CUR.last){alert('「'+CUR.name+'」是新進夥伴，沒有上一次的 PA 資料。');return;}
+  // 依名單「上次考核年月」搜（例：本期7月的人上次是1月）；檔名格式不一，以姓名為主鍵
+  const q='type:pdf parent:'+RECEIPT_FOLDER+' "'+CUR.name+'"';
+  window.open('https://drive.google.com/drive/search?q='+encodeURIComponent(q),'_blank');
 }
 // 依該員工課別，列出相關測驗成績表（含全員安全意識）
 function openTests(){
@@ -643,28 +667,92 @@ function doPA(){
   }
 }
 
-/* ====== 罐頭訊息 Email 草稿（課長→夥伴範本） ====== */
+/* ====== 罐頭訊息（範本「課長to夥伴」A1:F20 格式），以「轉寄收件夾的 PA 信」方式寄出 ======
+   表單填完後，該員工的 PA 問卷內容會自動寄到課長收件夾。
+   流程：① 複製罐頭內容 → ② 開 Gmail 搜尋那封 PA 信 → 按「轉寄」→ 收件人填夥伴 email（無 email 留空白）→ 內文最上方貼上。 */
+const MAIL_OPTS=['G2 晉級二級','G3 晉級三級','G4 晉級四級',
+ 'G2+ 晉級二級，下次考核下個職級','G3+ 晉級三級，下次考核下個職級',
+ 'S1 維持一級','S2 維持二級','S3 維持三級','S4 維持四級',
+ 'S1+ 維持一級，下次考核下個職級','S2+ 維持二級，下次考核下個職級','S3+ 維持三級，下次考核下個職級',
+ 'D0 未達一級標準','D1 未達二級標準，降為一級','D2 未達三級標準，降為二級','D3 未達四級標準，降為三級'];
+const TD='border:1px solid #999;padding:3px 12px;';
+function mailHTML(name,score,result,deadline){
+  const rows=MAIL_OPTS.map(o=>{
+    const hit=(o===result);
+    return '<tr><td style="'+TD+'text-align:center;font-weight:bold;color:#c00;width:46px">'+(hit?'V':'&nbsp;')+'</td>'+
+      '<td style="'+TD+'text-align:center;width:70px">'+(hit?(score||'&nbsp;'):'&nbsp;')+'</td>'+
+      '<td style="'+TD+(hit?'background:#fff3b0;font-weight:bold':'')+'">'+o+'</td></tr>';
+  }).join('');
+  const th='<th style="'+TD+'background:#efefef">';
+  return '<div style="font-family:Microsoft JhengHei,sans-serif;font-size:14px;line-height:1.7">'+
+   '<p>親愛的 '+name+' 夥伴您好：</p>'+
+   '<p>經過課長本人與您共同完成的這份PA問卷，<br>達成共識以下為本次您的PA考核結果如下：</p>'+
+   '<table style="border-collapse:collapse;font-size:13px"><tr>'+th+'勾選</th>'+th+'PA分數</th>'+th+'PA結果</th></tr>'+rows+'</table>'+
+   '<p>隨信附上您的PA問卷結果。<br>如您同意以上考核結果，請勾選「我同意本次考核結果正確無誤」，並回信給我。</p>'+
+   '<table style="border-collapse:collapse;font-size:13px"><tr>'+th+'勾選</th>'+th+'選項</th></tr>'+
+   '<tr><td style="'+TD+'width:46px">&nbsp;</td><td style="'+TD+'">我同意本次考核結果正確無誤</td></tr>'+
+   '<tr><td style="'+TD+'">&nbsp;</td><td style="'+TD+'">我不同意本次考核結果</td></tr></table>'+
+   '<p>請於 '+deadline+' 前回信，以利後續相關作業。<br>謝謝您</p>'+
+   '<p>《下方附上問卷內容》</p></div>';
+}
+function mailText(name,score,result,deadline){
+  const rows=MAIL_OPTS.map(o=>(o===result?'（V）\t'+(score||'')+'\t':'（　）\t\t')+o).join('\n');
+  return '親愛的 '+name+' 夥伴您好：\n\n經過課長本人與您共同完成的這份PA問卷，\n達成共識以下為本次您的PA考核結果如下：\n\n'+
+   '勾選\tPA分數\tPA結果\n'+rows+
+   '\n\n隨信附上您的PA問卷結果。\n如您同意以上考核結果，請勾選「我同意本次考核結果正確無誤」，並回信給我。\n\n'+
+   '勾選\t選項\n（　）\t我同意本次考核結果正確無誤\n（　）\t我不同意本次考核結果\n\n'+
+   '請於 '+deadline+' 前回信，以利後續相關作業。\n謝謝您\n\n《下方附上問卷內容》';
+}
+let MAIL_CUR=null;
 function genMail(){
+  if(!CUR) return;
   const result=document.getElementById('dResultSel').value;
   if(!result){alert('請先在「本次考核結果」下拉選擇（看表單查看分數後選）');return;}
-  const e=CUR, score=document.getElementById('dScoreEmail').value, to=document.getElementById('dEmail').value;
-  const deadline=fmt(addMonths(TODAY,1));
-  const body=
-`親愛的 ${e.name} 夥伴您好：
-
-經過課長本人與您共同完成的這份 PA 問卷，達成共識，以下為本次您的 PA 考核結果：
-
-${score?'　PA 分數：'+score+'\n':''}　PA 結果：${result}
-
-隨信附上您的 PA 問卷結果。
-如您同意以上考核結果，請勾選「我同意本次考核結果正確無誤」，並回信給我。
-請於 ${deadline} 前回信，以利後續相關作業。
-
-謝謝您`;
+  const score=document.getElementById('dScoreEmail').value.trim();
+  const to=document.getElementById('dEmail').value.trim();
+  // 夥伴須於 D+5 天內回覆同意（人資流程），非一個月
+  const deadline=fmt(new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()+5));
+  MAIL_CUR={name:CUR.name,to:to,
+    html:mailHTML(CUR.name,score,result,deadline),
+    text:mailText(CUR.name,score,result,deadline),
+    subject:'【PA 考核結果確認】'+CUR.name};
+  const m=document.getElementById('mailModal');
+  m.querySelector('#mailWho').textContent=CUR.name+(to?('｜收件人 '+to):'｜此夥伴無 email，收件人留空白（列印給本人）');
+  m.querySelector('#mailPreview').innerHTML=MAIL_CUR.html;
+  m.querySelector('#mailCopyMsg').textContent='';
+  m.style.display='flex';
+}
+function copyMailBody(){
+  const msg=document.getElementById('mailCopyMsg');
+  const done=()=>{msg.style.color='var(--green)';msg.textContent='✓ 已複製！到 Gmail 轉寄的內文最上方按 Ctrl+V 貼上。';};
+  const fallback=()=>{
+    const d=document.createElement('div'); d.innerHTML=MAIL_CUR.html;
+    d.style.position='fixed'; d.style.left='-9999px'; document.body.appendChild(d);
+    const r=document.createRange(); r.selectNodeContents(d);
+    const s=getSelection(); s.removeAllRanges(); s.addRange(r);
+    try{document.execCommand('copy');done();}catch(e){msg.style.color='var(--red)';msg.textContent='複製失敗：'+e.message;}
+    s.removeAllRanges(); d.remove();
+  };
+  if(navigator.clipboard && window.ClipboardItem){
+    navigator.clipboard.write([new ClipboardItem({
+      'text/html':new Blob([MAIL_CUR.html],{type:'text/html'}),
+      'text/plain':new Blob([MAIL_CUR.text],{type:'text/plain'})
+    })]).then(done).catch(fallback);
+  }else fallback();
+}
+// 開 Gmail 搜尋收件夾裡這位夥伴的 PA 問卷信（表單填完自動寄達），找到後按「轉寄」
+function openMailSearch(){
+  if(!MAIL_CUR) return;
+  const q='in:inbox "'+MAIL_CUR.name+'" 員工專業績效考核表';
+  window.open('https://mail.google.com/mail/u/0/#search/'+encodeURIComponent(q),'_blank');
+}
+// 找不到 PA 信時的後備：直接開一封新信（不含問卷內容）
+function composeFallback(){
+  if(!MAIL_CUR) return;
   const url='https://mail.google.com/mail/?view=cm&fs=1'+
-    '&to='+encodeURIComponent(to||'')+
-    '&su='+encodeURIComponent('【PA 考核結果確認】'+e.name)+
-    '&body='+encodeURIComponent(body);
+    '&to='+encodeURIComponent(MAIL_CUR.to||'')+
+    '&su='+encodeURIComponent(MAIL_CUR.subject)+
+    '&body='+encodeURIComponent(MAIL_CUR.text);
   window.open(url,'_blank');
 }
 </script>
