@@ -188,6 +188,8 @@
     </div>
   </div>
 
+  <button class="act ghost" id="promoBtn" onclick="openPromo()" style="border-color:#7e22ce;color:#7e22ce">📄 產生晉級提報表（結果為 G 晉級時用）</button>
+  <div class="hint">人資要的「晉級提報表」：勾選本次已具備要點→自動組出提報原因→複製或下載 Word。</div>
   <button class="act ghost" onclick="genMail()">產生罐頭訊息 Email 草稿</button>
   <div class="hint">寄信由你親自按下送出；無 email 的夥伴可留空白。</div>
 </div>
@@ -230,6 +232,46 @@
     <div class="hint" id="mailCopyMsg" style="min-height:16px;margin:0 0 8px"></div>
     <div id="mailPreview" style="border:1px solid var(--line);border-radius:10px;padding:12px;max-height:44vh;overflow-y:auto;background:var(--soft)"></div>
     <button class="act ghost" style="margin-top:10px;padding:9px" onclick="composeFallback()">找不到 PA 信？改開一般新信（自動帶入文字內容）</button>
+  </div>
+</div>
+
+<!-- 晉級提報表 modal -->
+<div id="promoModal" class="modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modalbox" style="width:min(96vw,760px);max-height:88vh">
+    <button class="closeX" onclick="document.getElementById('promoModal').style.display='none'">✕</button>
+    <h3 style="margin:0 0 4px">📄 晉級提報表</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:10px" id="promoWho"></div>
+
+    <div class="box" style="margin:0 0 10px">
+      <h4>基本資料（自動帶入，可改）</h4>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <label style="font-size:12px;color:#64748b">分店<input id="pfStore" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px"></label>
+        <label style="font-size:12px;color:#64748b">單位<input id="pfUnit" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px"></label>
+        <label style="font-size:12px;color:#64748b">姓名<input id="pfName" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px"></label>
+        <label style="font-size:12px;color:#64748b">職稱<input id="pfTitle" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px"></label>
+        <label style="font-size:12px;color:#64748b">原始到職日期<input id="pfHire" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px"></label>
+        <label style="font-size:12px;color:#64748b">總年資<input id="pfYears" style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px"></label>
+      </div>
+    </div>
+
+    <div class="box" style="margin:0 0 10px">
+      <h4>本次考核「已具備」要點（預設全勾，照表單實際結果取消未具備的）</h4>
+      <div id="promoPoints" style="max-height:30vh;overflow-y:auto;font-size:13px;line-height:1.7"></div>
+      <div id="promoExtra" style="margin-top:10px"></div>
+      <button class="act ghost" style="margin-top:10px;padding:8px" onclick="buildPromoText()">🔄 依勾選重新組提報文字</button>
+    </div>
+
+    <div class="field" style="margin:0 0 8px">
+      <label>提報原因說明（自動組好，送出前請自行潤稿）</label>
+      <textarea id="promoText" style="width:100%;height:180px;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:13px;line-height:1.7;font-family:inherit"></textarea>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="act" style="flex:1;margin:0;padding:11px" onclick="copyPromo()">📋 複製表格（貼進人資空白表單）</button>
+      <button class="act" style="flex:1;margin:0;padding:11px;background:#7e22ce" onclick="downloadPromo()">⬇️ 下載 Word 檔</button>
+    </div>
+    <div class="hint" id="promoMsg" style="min-height:16px"></div>
+    <div class="hint">提報原因只能寫「表單上真的勾了的事」；列舉欄位請照夥伴在問卷裡填的原文貼上，不要自行加寫沒發生的事蹟。</div>
   </div>
 </div>
 
@@ -754,6 +796,191 @@ function composeFallback(){
     '&su='+encodeURIComponent(MAIL_CUR.subject)+
     '&body='+encodeURIComponent(MAIL_CUR.text);
   window.open(url,'_blank');
+}
+
+/* ====== 晉級提報表（結果為 G 晉級時填給人資的表）====== */
+/* 六大段落標題；各課要點掛在下面的 PROMO_POINTS，未建檔的課走通用骨架自己打字 */
+const PROMO_BUCKETS=[
+ '消防安全設備管理與實機操作（公安核心職能）',
+ '門禁與人流管制之獨立作業能力（防損第一道防線）',
+ '防損查核作業涵蓋完整，阻斷全流程損耗缺口',
+ '異常處理與緊急應變之第一時間判斷力',
+ '主動改善建議與顧客服務意識',
+ '專業知能與團隊協作'];
+const PROMO_BUCKETS_GEN=[
+ '每日營運與工作站熟練度（基礎執行力）',
+ '後台與庫存管理落實度',
+ '賣場經營與數據掌控',
+ '檔期／專案配合與變革執行',
+ '主動改善建議與顧客服務意識',
+ '專業知能與團隊協作'];
+/* 安管課員 PA 表單（維安課＝安管＋維修）全部 35 項要點，依段落歸位 */
+const PROMO_POINTS={'維安課':[
+ ['G1-8','依消防相關檢查表落實滅火器、消防栓等設備檢查工作',0],
+ ['G1-9','瞭解 F1～F13 各項消防設備之用途與使用方法並能實際操作',0],
+ ['G2-27','熟悉 995 疏散程序，自發現事件至疏散完畢全程掌握',0],
+ ['G2-28','依公司流程正確完成消防設備異常處理（受信總機／幫浦啟動／鐵捲門下降）',0],
+ ['G1-11','依作業規範獨立、正確完成人員管制作業',1],
+ ['G1-12','依作業規範獨立、正確完成入場管制作業',1],
+ ['G1-13','依作業規範獨立、正確完成未購物出口作業',1],
+ ['G1-22','確實完成各班各哨位交接，遵從工時、輪班、出缺勤等規定',1],
+ ['G1-14','依作業規範獨立、正確完成商品查核作業',2],
+ ['G1-15','依作業規範獨立、正確完成物品攜出入管制作業',2],
+ ['G1-16','依作業規範獨立、正確完成廠商退換貨查核作業',2],
+ ['G1-17','依作業規範獨立、正確完成廠商試吃、贈品管制作業',2],
+ ['G1-18','依作業規範獨立、正確完成報廢查核作業',2],
+ ['G1-19','依作業規範獨立、正確完成垃圾清運檢查作業',2],
+ ['G1-20','依作業規範獨立、正確完成收貨商品抽查作業',2],
+ ['G1-21','依作業規範獨立、正確完成門神發報作業',2],
+ ['G1-5','正確管理鑰匙的領用與繳回作業',2],
+ ['G1-6','正確管理束帶及標籤的領用作業',2],
+ ['G1-7','安管相關表單填寫正確完整',2],
+ ['G2-24','預見或面臨危險狀況時第一時間採取初步措施，並同步通報主管或相關單位',3],
+ ['G2-25','異常現象可基本排除（零件損壞、機器運轉不佳、防火門損壞），並即時通報值班主管、記錄與追蹤',3],
+ ['G2-30','依作業規範落實巡檢工作並正確記錄',3],
+ ['G2-31','依作業規範處理保全系統異常發報作業',3],
+ ['G2-32','依作業規範處理防盜警報系統異常發報作業或肅竊大於等於 2 件',3],
+ ['G1-10','以顧客角度主動向課長反映消防、人員安全與工作環境等想法',4],
+ ['G2-29','主動與課長分享團隊做得好的地方與可進步之處',4],
+ ['G1-4','了解店內設施及商品擺放位置，以禮貌且熱情的態度回應顧客',4],
+ ['G1-23','扮演公司形象大使，落實微笑、歡迎、服務、協助',4],
+ ['G2-26','提供即時服務予同仁／廠商／顧客（商品諮詢、安全、消防諮詢）',4],
+ ['G1-1','遵守服裝儀容規定，配戴識別證並維持工作服整潔',5],
+ ['G1-2','遵守公司制度、正確使用工具器材，每日完成工作周圍區域清潔維護',5],
+ ['G1-3','安全意識測驗及格（及格標準 80 分）',5],
+ ['G2-33','有效率完成被交付的任務，確保結果可被紀錄及追蹤',5],
+ ['G2-34','面臨執行困難時適度尋求課長協助或請求資源以完成任務',5],
+ ['G2-35','投入課會議、付諸行動於共同決定，並與其他團隊夥伴保持良好溝通',5]
+]};
+/* 需要夥伴在問卷裡「列舉」原文的題目：組文字時原文照貼，不得自行代筆 */
+const PROMO_QUOTES={'維安課':[
+ ['G1-10','G1-10 列舉（夥伴在問卷填的原文）','例：4F消防栓老舊建議更換確保不會有安全疑慮維護客人安全'],
+ ['G2-29','G2-29 列舉（夥伴在問卷填的原文）','例：請資深員工建立標準SOP讓夥伴能夠及時查看問題點並以利未來若有新進夥伴也可以做教材使用']
+]};
+let PROMO_CUR=null;
+function yearsOfService(hire){
+  if(!hire) return '';
+  const d=new Date(hire); if(isNaN(d)) return '';
+  return (Math.round(((TODAY-d)/86400000/365)*100)/100)+'年';
+}
+function promoUnit(e){ return e.course==='維安課' ? '安管課' : e.course; }
+function openPromo(){
+  if(!CUR){alert('請先從名單點一位夥伴。');return;}
+  PROMO_CUR=CUR;
+  const res=document.getElementById('dResultSel').value;
+  const sc=document.getElementById('dScoreEmail').value;
+  document.getElementById('promoWho').innerHTML=CUR.name+'｜'+CUR.course+'｜本次結果 <b>'+(res||'（尚未選）')+'</b>'+(sc?('　'+sc+' 分'):'');
+  document.getElementById('pfStore').value='平鎮店';
+  document.getElementById('pfUnit').value=promoUnit(CUR);
+  document.getElementById('pfName').value=CUR.name;
+  document.getElementById('pfTitle').value=(CUR.role2==='asst'?'助理':'課員');
+  document.getElementById('pfHire').value=(CUR.hire||'').replace(/-/g,'');
+  document.getElementById('pfYears').value=yearsOfService(CUR.hire);
+  const pts=PROMO_POINTS[CUR.course]||null;
+  const box=document.getElementById('promoPoints');
+  if(pts){
+    let html='';
+    PROMO_BUCKETS.forEach((t,bi)=>{
+      const rows=pts.filter(p=>p[2]===bi);
+      if(!rows.length) return;
+      html+='<div style="font-weight:700;margin:8px 0 4px;color:#334155">'+(bi+1)+'、'+t+'</div>';
+      rows.forEach(p=>{
+        html+='<label style="display:block;padding:2px 0"><input type="checkbox" class="ppt" data-code="'+p[0]+'" data-b="'+bi+'" checked> <b>'+p[0]+'</b> '+p[1]+'</label>';
+      });
+    });
+    box.innerHTML=html;
+  }else{
+    box.innerHTML='<div style="color:#b45309;line-height:1.8">這一課的 PA 要點還沒建進工具（目前只建了維安課／安管課員）。下面會給六段通用骨架，請照該課表單上「已具備」的項目自己補句子。</div>';
+  }
+  const qs=PROMO_QUOTES[CUR.course]||[];
+  document.getElementById('promoExtra').innerHTML=qs.map(q=>
+    '<label style="display:block;font-size:12px;color:#64748b;margin-top:6px">'+q[1]+
+    '<textarea class="pq" data-code="'+q[0]+'" placeholder="'+q[2]+'" style="width:100%;height:46px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit"></textarea></label>').join('');
+  box.querySelectorAll('.ppt').forEach(c=>c.addEventListener('change',buildPromoText));
+  document.getElementById('promoExtra').querySelectorAll('.pq').forEach(c=>c.addEventListener('input',buildPromoText));
+  document.getElementById('promoMsg').textContent='';
+  buildPromoText();
+  document.getElementById('promoModal').style.display='flex';
+}
+function buildPromoText(){
+  const e=PROMO_CUR; if(!e) return;
+  const pts=PROMO_POINTS[e.course]||null;
+  const titles=pts?PROMO_BUCKETS:PROMO_BUCKETS_GEN;
+  const quotes={};
+  document.getElementById('promoExtra').querySelectorAll('.pq').forEach(t=>{quotes[t.dataset.code]=t.value.trim();});
+  const checked=[...document.querySelectorAll('#promoPoints .ppt')].filter(c=>c.checked).map(c=>c.dataset.code);
+  const total=pts?pts.length:0;
+  let out=[];
+  titles.forEach((t,bi)=>{
+    let body='';
+    if(pts){
+      const rows=pts.filter(p=>p[2]===bi&&checked.indexOf(p[0])>=0);
+      if(!rows.length) return;
+      body=rows.map(p=>{
+        let s=p[1];
+        if(p[0]==='G1-3'){
+          const sv=(typeof safetyScore==='function')?safetyScore(e.id):null;
+          if(sv!=null) s='安全意識測驗 '+sv+' 分（及格標準 80 分）';
+        }
+        if(quotes[p[0]]) s+='，實例：'+quotes[p[0]];
+        return s;
+      }).join('；')+'。';
+    }else{
+      body='（請填寫本段具體事蹟）';
+    }
+    out.push((out.length+1)+'、'+t+'\n'+body);
+  });
+  const res=document.getElementById('dResultSel').value;
+  const sc=document.getElementById('dScoreEmail').value;
+  let proof='【考核結果佐證】\n';
+  proof+=pts?('本次專業考核 '+total+' 項要點具備 '+checked.length+' 項'):'本次專業考核依表單結果';
+  if(sc) proof+='，考核總分 '+sc+' 分';
+  if(res) proof+='，考核結果「'+res+'」';
+  if(e.last) proof+='；上次考核（'+e.last.date.slice(0,7).replace('-','/')+'）'+(e.last.score!=null?e.last.score+' 分 ':'')+(e.last.result||'');
+  proof+='。爰依考核結果提報晉級。';
+  out.push(proof);
+  document.getElementById('promoText').value=out.join('\n\n');
+}
+function promoTableHTML(){
+  const g=id=>document.getElementById(id).value;
+  const body=document.getElementById('promoText').value.split('\n').map(l=>l?l:'&nbsp;').join('<br>');
+  const td='border:1px solid #000;padding:6px 8px;font-family:標楷體;font-size:12pt';
+  return '<div style="font-family:標楷體"><p style="text-align:center;font-size:18pt;font-weight:bold">【晉級提報表】</p>'+
+   '<table style="border-collapse:collapse;width:100%">'+
+   '<tr><td style="'+td+';text-align:center;font-weight:bold">分店</td><td style="'+td+';text-align:center">'+g('pfStore')+'</td>'+
+   '<td style="'+td+';text-align:center;font-weight:bold">單位</td><td style="'+td+';text-align:center">'+g('pfUnit')+'</td>'+
+   '<td style="'+td+';text-align:center;font-weight:bold">姓名</td><td style="'+td+';text-align:center">'+g('pfName')+'</td></tr>'+
+   '<tr><td style="'+td+';text-align:center;font-weight:bold">職稱</td><td style="'+td+';text-align:center">'+g('pfTitle')+'</td>'+
+   '<td style="'+td+';text-align:center;font-weight:bold">原始到職日期</td><td style="'+td+';text-align:center">'+g('pfHire')+'</td>'+
+   '<td style="'+td+';text-align:center;font-weight:bold">總年資</td><td style="'+td+';text-align:center">'+g('pfYears')+'</td></tr>'+
+   '<tr><td colspan="6" style="'+td+';text-align:center;font-weight:bold">提報原因說明</td></tr>'+
+   '<tr><td colspan="6" style="'+td+';line-height:1.7">'+body+'</td></tr>'+
+   '</table></div>';
+}
+function copyPromo(){
+  const msg=document.getElementById('promoMsg');
+  const html=promoTableHTML();
+  const txt=document.getElementById('promoText').value;
+  const done=()=>{msg.style.color='var(--green)';msg.textContent='✓ 已複製，開人資給的空白表單 Ctrl+V 貼上';};
+  if(navigator.clipboard&&window.ClipboardItem){
+    navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),
+      'text/plain':new Blob([txt],{type:'text/plain'})})]).then(done)
+      .catch(()=>{navigator.clipboard.writeText(txt).then(done);});
+  }else{navigator.clipboard.writeText(txt).then(done);}
+}
+function downloadPromo(){
+  const name=document.getElementById('pfName').value;
+  const unit=document.getElementById('pfUnit').value;
+  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">'+
+    '<head><meta charset="utf-8"><title>晉級提報表</title></head><body>'+promoTableHTML()+'</body></html>';
+  const blob=new Blob(['﻿'+html],{type:'application/msword'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='晉級提報表-'+unit+' '+name+'.doc';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  const msg=document.getElementById('promoMsg');
+  msg.style.color='var(--green)';msg.textContent='✓ 已下載，用 Word 開啟後可直接編輯／另存 .docx';
 }
 </script>
 </body>
